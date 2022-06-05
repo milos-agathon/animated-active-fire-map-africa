@@ -1,6 +1,6 @@
 #############################################
 # Animated active fires map of Africa
-# Milos Popovic 2022/06/05
+# Milos Popovic 2022/06/04
 #############################################
 # libraries we need
 libs <- c(
@@ -22,7 +22,6 @@ invisible(lapply(libs, library, character.only = T))
 #----------------------
 
 get_africa_sf <- function(africa) {
-  
   africa <- giscoR::gisco_get_countries(
     year = "2020", epsg = "4326",
     resolution = "10", region = "Africa"
@@ -61,7 +60,7 @@ get_africa_hex <- function(africa_transfomed, africa_hex, africa_final) {
     ) %>%
     st_cast("MULTIPOLYGON") # transform to multipolygons
 
-  africa_final <- st_transform(africa_hex, crs = crsLONGLAT) # transform back to longlat
+  africa_final <- sf::st_transform(africa_hex, crs = crsLONGLAT)
 
   return(africa_final)
 }
@@ -85,7 +84,7 @@ get_fire_data <- function(main_url, map_key, source,
 }
 
 main_url <- "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
-map_key <- "********************************"
+map_key <- "*******************************"
 source <- "MODIS_NRT"
 area_coords <- paste(africa_coords, sep = "", collapse = ",")
 day_range <- 10
@@ -100,22 +99,19 @@ fire_data <- get_fire_data(
 # 4. FILTER AND AGGREGATE AFRICA'S FIRE EVENTS
 #---------------------------------------------
 get_africa_fires <- function(fire_coords, fire_africa) {
-
   fire_coords <- st_as_sf(fire_data, coords = c(2, 1)) %>%
     st_set_crs(4326) %>%
     st_transform(crsLONGLAT)
 
-  fire_africa <- st_join(fire_coords, africa_final, join = st_within)
+  fire_africa <- sf::st_join(fire_coords, africa_final, join = sf::st_within)
 
   return(fire_africa)
-
 }
 
 fire_africa <- get_africa_fires()
 
 
 get_aggregated_africa_fires <- function() {
-
   fire_africa$weighted_fire <- fire_africa$confidence / 100
 
   fire_africa_sum <- st_drop_geometry(fire_africa) %>%
@@ -125,7 +121,7 @@ get_aggregated_africa_fires <- function() {
       list(sum_fire = sum)
     )
 
-  fire_africa_sf <- left_join(africa_final, fire_africa_sum, by = "id")
+  fire_africa_sf <- dplyr::left_join(africa_final, fire_africa_sum, by = "id")
 
   fire_africa_sf$sum_fire <- round(fire_africa_sf$sum_fire, 0)
   fire_africa_sf$sum_fire[fire_africa_sf$sum_fire == 0] <- NA
@@ -140,24 +136,27 @@ fire_africa_sf <- get_aggregated_africa_fires()
 #-----------
 
 get_intervals <- function(ni, labels, df) {
-  
   df <- drop_na(fire_africa_sf)
-  ni <- classIntervals(df$sum_fire, 
-              n = 5, 
-              style = 'jenks')$brks
+  ni <- classIntervals(df$sum_fire,
+    n = 5,
+    style = "jenks"
+  )$brks
   # create categories
   labels <- c()
-  for(i in 1:length(ni)){
-    labels <- c(labels, paste0(round(ni[i], 0), 
-                             "–", 
-                             round(ni[i + 1], 0)))
+  for (i in 1:length(ni)) {
+    labels <- c(labels, paste0(
+      round(ni[i], 0),
+      "–",
+      round(ni[i + 1], 0)
+    ))
   }
-  labels <- labels[1:length(labels)-1]
+  labels <- labels[1:length(labels) - 1]
 
-  df$cat <- cut(df$sum_fire, 
-              breaks = ni, 
-              labels = labels, 
-              include.lowest = T)
+  df$cat <- cut(df$sum_fire,
+    breaks = ni,
+    labels = labels,
+    include.lowest = T
+  )
 
   return(df)
 }
@@ -166,8 +165,11 @@ df <- get_intervals()
 
 # animate the map
 
-get_africa_map <- function(africa_map) {
+# FOR WINDOWS USERS
+# sysfonts::font_add_google("Montserrat", "Montserrat")
+# showtext::showtext_auto()
 
+get_africa_map <- function(africa_map) {
   africa_map <- ggplot(na.omit(df)) +
     geom_sf(
       mapping = aes(
@@ -182,10 +184,14 @@ get_africa_map <- function(africa_map) {
       color = "white",
       size = 0.05
     ) +
-    scale_fill_manual(name= "",
-        values = rev(c('#3d0965', '#8a335c', '#c26958', 
-        '#e3aa61', '#f1ef75')),
-        drop=F)+
+    scale_fill_manual(
+      name = "",
+      values = rev(c(
+        "#3d0965", "#8a335c", "#c26958",
+        "#e3aa61", "#f1ef75"
+      )),
+      drop = F
+    ) +
     coord_sf(crs = crsLONGLAT) +
     guides(fill = guide_legend(
       direction = "horizontal",
@@ -201,20 +207,30 @@ get_africa_map <- function(africa_map) {
     )) +
     theme_minimal() +
     theme(
+     # text = element_text(family = "Montserrat"),
       axis.line = element_blank(),
       axis.text.x = element_blank(),
       axis.text.y = element_blank(),
       axis.ticks = element_blank(),
       axis.title.x = element_blank(),
       axis.title.y = element_blank(),
-      legend.position = c(.5, .05),
+      legend.position = c(.5, .125),
       legend.text = element_text(size = 20, color = "white"),
       panel.grid.major = element_line(color = "grey20", size = .2),
       panel.grid.minor = element_blank(),
-      plot.title = element_text(face = "bold", size = 40, color = "white", hjust = .5),
-      plot.caption = element_text(size = 14, color = "white", hjust = .5, vjust = 0),
-      plot.subtitle = element_text(size = 60, color = "#c43c4e", hjust = .5),
-      plot.margin = unit(c(t = 0, r = 0, b = 0, l = 0), "lines"),
+      plot.title = element_text(
+        face = "bold", size = 40,
+        color = "white", hjust = .5, vjust = -7
+      ),
+      plot.caption = element_text(
+        size = 14, color = "white",
+        hjust = .5, vjust = 16
+      ),
+      plot.subtitle = element_text(
+        size = 60, color = "#c43c4e",
+        hjust = .5, vjust = -2
+      ),
+      plot.margin = unit(c(t = -4, r = -4, b = -4, l = -4), "lines"),
       plot.background = element_rect(fill = "grey20", color = NA),
       panel.background = element_rect(fill = "grey20", color = NA),
       legend.background = element_rect(fill = "grey20", color = NA),
@@ -225,11 +241,12 @@ get_africa_map <- function(africa_map) {
       y = "",
       title = "Active fires in Africa adjusted by confidence level",
       subtitle = "{as.Date(frame_time)}",
-      caption = "©2022 Milos Popovic (https://milospopovic.net)\nMODIS Collection 61 NRT Hotspot / Active Fire Detections MCD14DL from NASA FIRMS"
+      caption = "©2022 Milos Popovic (https://milospopovic.net)
+        MODIS Collection 61 NRT Hotspot/Active Fire Detections MCD14DL
+        from NASA FIRMS"
     )
-  
-  return(africa_map)
 
+  return(africa_map)
 }
 
 africa_map <- get_africa_map()
@@ -246,9 +263,9 @@ africa_anim <- animate(africa_map,
   start_pause = 3,
   end_pause = 30,
   height = 6,
-  width = 6.525,
+  width = 7.15,
   res = 300,
   units = "in"
 )
 
-anim_save("active_fires_africa.gif", africa_anim)
+anim_save("active_fires_africa2.gif", africa_anim)
