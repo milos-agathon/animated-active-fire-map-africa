@@ -6,7 +6,8 @@
 libs <- c(
   "tidyverse", "sf", "giscoR",
   "data.table", "classInt",
-  "gganimate", "gifski"
+  "gganimate", "gifski",
+  "transformr"
 )
 
 # install missing libraries
